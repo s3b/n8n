@@ -312,18 +312,18 @@ export class AgentsService {
 	) {
 		// Node-discovery tools: let the agent discover and run n8n nodes on demand.
 		try {
-			const {
-				createSearchNodesTool: createSearchToolsTool,
-				createGetNodeSchemaTool,
-				createRunNodeTool,
-			} = await import('./integrations/node-execution-tools');
+			const { createSearchNodesTool, createGetNodeSchemaTool, createRunNodeTool } = await import(
+				'./integrations/node-execution-tools'
+			);
 			const { nodes } = await this.loadNodesAndCredentials.collectTypes();
 			const nodeDefDirs = resolveBuiltinNodeDefinitionDirs();
 			if (nodeDefDirs.length > 0) setSchemaBaseDirs(nodeDefDirs);
 
-			agent.tool(createSearchToolsTool(nodes, credentialProvider));
-			agent.tool(createGetNodeSchemaTool(nodes));
-			agent.tool(createRunNodeTool(this.ephemeralNodeExecutor, projectId));
+			agent.tool([
+				createSearchNodesTool(nodes, credentialProvider),
+				createGetNodeSchemaTool(nodes),
+				createRunNodeTool(this.ephemeralNodeExecutor, projectId),
+			]);
 		} catch (toolError) {
 			this.logger.warn('Failed to inject node-discovery tools', {
 				agentId,
