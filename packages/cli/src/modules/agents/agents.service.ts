@@ -292,6 +292,24 @@ export class AgentsService {
 			});
 		}
 
+		await this.attachNodeToolChain(agent, credentialProvider, agentId, projectId);
+
+		// Inject checkpoint storage
+		if (!agent.hasCheckpointStorage()) {
+			agent.checkpoint(this.n8nCheckpointStorage);
+		}
+	}
+
+	/**
+	 * Attaches tool chain to an agent instance, which enables it to discover and execute
+	 * n8n nodes as tools.
+	 */
+	private async attachNodeToolChain(
+		agent: agents.Agent,
+		credentialProvider: CredentialProvider,
+		agentId: string,
+		projectId: string,
+	) {
 		// Node-discovery tools: let the agent discover and run n8n nodes on demand.
 		try {
 			const { createSearchToolsTool, createGetNodeSchemaTool, createRunNodeTool } = await import(
@@ -309,11 +327,6 @@ export class AgentsService {
 				agentId,
 				error: toolError instanceof Error ? toolError.message : String(toolError),
 			});
-		}
-
-		// Inject checkpoint storage
-		if (!agent.hasCheckpointStorage()) {
-			agent.checkpoint(this.n8nCheckpointStorage);
 		}
 	}
 
