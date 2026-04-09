@@ -312,9 +312,11 @@ export class AgentsService {
 	) {
 		// Node-discovery tools: let the agent discover and run n8n nodes on demand.
 		try {
-			const { createSearchToolsTool, createGetNodeSchemaTool, createRunNodeTool } = await import(
-				'./integrations/node-execution-tools'
-			);
+			const {
+				createSearchNodesTool: createSearchToolsTool,
+				createGetNodeSchemaTool,
+				createRunNodeTool,
+			} = await import('./integrations/node-execution-tools');
 			const { nodes } = await this.loadNodesAndCredentials.collectTypes();
 			const nodeDefDirs = resolveBuiltinNodeDefinitionDirs();
 			if (nodeDefDirs.length > 0) setSchemaBaseDirs(nodeDefDirs);
