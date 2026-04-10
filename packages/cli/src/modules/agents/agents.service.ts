@@ -67,9 +67,12 @@ export class AgentsService {
 		{ agent: agents.Agent; agentId: string; userId?: string }
 	>(30 * Time.minutes.toMilliseconds);
 
-	/** Build a cache key that includes the user so different users get isolated runtimes. */
-	private runtimeKey(agentId: string, userId?: string): string {
-		return userId ? `${agentId}:${userId}` : agentId;
+	/** Build a cache key that includes the user and platform so different contexts get isolated runtimes. */
+	private runtimeKey(agentId: string, userId?: string, integrationType?: string): string {
+		const parts = [agentId];
+		if (userId) parts.push(userId);
+		if (integrationType) parts.push(integrationType);
+		return parts.join(':');
 	}
 
 	/** Remove all cached runtimes for an agent (across all users). */
@@ -272,11 +275,15 @@ export class AgentsService {
 	 * Workflow and node tools are resolved earlier via `makeToolResolver()` inside
 	 * `fromSchema()`, so this method only handles host-side singletons.
 	 */
-	private async injectRuntimeDependencies(agent: agents.Agent, agentId: string): Promise<void> {
+	private async injectRuntimeDependencies(
+		agent: agents.Agent,
+		agentId: string,
+		integrationType?: string,
+	): Promise<void> {
 		// Inject the rich_interaction tool for ad-hoc UI in chat integrations.
 		try {
 			const { createRichInteractionTool } = await import('./integrations/rich-interaction-tool');
-			agent.tool(createRichInteractionTool());
+			agent.tool(createRichInteractionTool(integrationType));
 		} catch (toolError) {
 			this.logger.warn('Failed to inject rich_interaction tool', {
 				agentId,
@@ -348,8 +355,9 @@ export class AgentsService {
 		userId: string,
 		projectId: string,
 		credentialProvider: CredentialProvider,
+		integrationType?: string,
 	): AsyncGenerator<StreamChunk> {
-		const key = this.runtimeKey(agentId, userId);
+		const key = this.runtimeKey(agentId, userId, integrationType);
 		let runtime = this.runtimes.get(key);
 		if (!runtime) {
 			// Scope the lookup to the project so an agent from a different project
@@ -361,6 +369,7 @@ export class AgentsService {
 				agentEntity,
 				credentialProvider,
 				userId,
+				integrationType,
 			);
 
 			// Cache the runtime for subsequent calls
@@ -721,6 +730,7 @@ export class AgentsService {
 		agentEntity: Agent,
 		credentialProvider: CredentialProvider,
 		userId?: string,
+		integrationType?: string,
 	): Promise<agents.Agent> {
 		const config = agentEntity.schema;
 		if (!config) {
@@ -752,7 +762,7 @@ export class AgentsService {
 			memoryFactory: this.getMemoryFactory(),
 		});
 
-		await this.injectRuntimeDependencies(reconstructed, agentEntity.id);
+		await this.injectRuntimeDependencies(reconstructed, agentEntity.id, integrationType);
 
 		return reconstructed;
 	}
