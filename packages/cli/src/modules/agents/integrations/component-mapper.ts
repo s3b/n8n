@@ -88,7 +88,7 @@ export class ComponentMapper {
 		runId: string,
 		toolCallId: string,
 		resumeSchema?: unknown,
-		shortenCallback?: (actionId: string, value: string) => { id: string; value: string },
+		shortenCallback?: (actionId: string, value: string) => Promise<{ id: string; value: string }>,
 		platform?: string,
 	): Promise<unknown> {
 		const {
@@ -114,7 +114,7 @@ export class ComponentMapper {
 
 		// Helper to create a resume button with the value wrapped as a full
 		// resume payload matching the tool's schema.
-		const makeButton = (label: string, rawValue: string, style?: string) => {
+		const makeButton = async (label: string, rawValue: string, style?: string) => {
 			const resumePayload = this.wrapValueForSchema(rawValue, resumeSchema);
 			let id = `resume:${runId}:${toolCallId}:${buttonIndex++}`;
 			let value = JSON.stringify(resumePayload);
@@ -122,7 +122,7 @@ export class ComponentMapper {
 			// For platforms with short callback limits (e.g. Telegram 64 bytes),
 			// replace the full ID/value with a short lookup key.
 			if (shortenCallback) {
-				const shortened = shortenCallback(id, value);
+				const shortened = await shortenCallback(id, value);
 				id = shortened.id;
 				value = shortened.value;
 			}
@@ -134,7 +134,7 @@ export class ComponentMapper {
 			switch (component.type) {
 				case 'button':
 					buttons.push(
-						makeButton(component.label ?? 'Action', component.value ?? '', component.style),
+						await makeButton(component.label ?? 'Action', component.value ?? '', component.style),
 					);
 					break;
 
@@ -148,7 +148,11 @@ export class ComponentMapper {
 					if (component.button) {
 						children.push(
 							Actions([
-								makeButton(component.button.label, component.button.value, component.button.style),
+								await makeButton(
+									component.button.label,
+									component.button.value,
+									component.button.style,
+								),
 							] as never),
 						);
 					}
