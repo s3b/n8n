@@ -19,15 +19,9 @@ import { Container, Service } from '@n8n/di';
 import { In } from '@n8n/typeorm';
 import { OperationalError, UserError } from 'n8n-workflow';
 
-import { Agent } from './entities/agent.entity';
-import { N8NCheckpointStorage } from './integrations/n8n-checkpoint-storage';
-import { AgentRepository } from './repositories/agent.repository';
-import type { WorkflowToolDescriptor } from './types';
-
 import { setSchemaBaseDirs } from '@n8n/workflow-sdk';
 
 import { ActiveExecutions } from '@/active-executions';
-import { resolveBuiltinNodeDefinitionDirs } from '@/modules/instance-ai/node-definition-resolver';
 import { resolveBuiltinNodeDefinitionDirs } from '@/modules/instance-ai/node-definition-resolver';
 import { CredentialsService } from '@/credentials/credentials.service';
 import { ConflictError } from '@/errors/response-errors/conflict.error';
@@ -330,40 +324,6 @@ export class AgentsService {
 				error: toolError instanceof Error ? toolError.message : String(toolError),
 			});
 		}
-	}
-
-	/**
-	 * Reconstruct an agent from its persisted DB schema using Agent.fromSchema().
-	 * This is the execution-time path — no compile() call needed.
-	 * The runtime is cached for subsequent calls.
-	 */
-	private async reconstructFromSchema(
-		agentEntity: Agent,
-		credentialProvider: CredentialProvider,
-		userId?: string,
-	): Promise<agents.Agent> {
-		if (!agentEntity.schema) {
-			throw new UserError(
-				'Agent schema is not available. The agent may need to be re-saved to generate its schema.',
-			);
-		}
-
-		const source = agentEntity.code;
-		if (!source?.trim()) {
-			throw new UserError('Agent has no source code.');
-		}
-
-		const executor = this.secureRuntime.createExecutor(source);
-
-		const reconstructed = await agents.Agent.fromSchema(agentEntity.schema, agentEntity.name, {
-			handlerExecutor: executor,
-			credentialProvider,
-			resolveTool: this.makeToolResolver(agentEntity.projectId, userId),
-		});
-
-		await this.injectRuntimeDependencies(reconstructed, agentEntity.id);
-
-		return reconstructed;
 	}
 
 	/**
@@ -828,7 +788,12 @@ export class AgentsService {
 			memoryFactory: this.getMemoryFactory(),
 		});
 
-		await this.injectRuntimeDependencies(reconstructed, agentEntity.id);
+		await this.injectRuntimeDependencies(
+			reconstructed,
+			agentEntity.id,
+			agentEntity.projectId,
+			credentialProvider,
+		);
 
 		return reconstructed;
 	}
