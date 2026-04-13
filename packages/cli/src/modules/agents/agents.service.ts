@@ -19,15 +19,12 @@ import { Container, Service } from '@n8n/di';
 import { In } from '@n8n/typeorm';
 import { OperationalError, UserError } from 'n8n-workflow';
 
-import { setSchemaBaseDirs } from '@n8n/workflow-sdk';
-
 import { ActiveExecutions } from '@/active-executions';
 import { resolveBuiltinNodeDefinitionDirs } from '@/modules/instance-ai/node-definition-resolver';
 import { CredentialsService } from '@/credentials/credentials.service';
 import { ConflictError } from '@/errors/response-errors/conflict.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { EphemeralNodeExecutor } from '@/node-execution';
-import { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
 import { UrlService } from '@/services/url.service';
 import { TtlMap } from '@/utils/ttl-map';
 import { WorkflowRunner } from '@/workflow-runner';
@@ -40,6 +37,7 @@ import type {
 } from './json-config/agent-json-config';
 import { AgentJsonConfigSchema } from './json-config/agent-json-config';
 import { AgentSecureRuntime } from './runtime/agent-secure-runtime';
+import { AgentsToolsService } from './agents-tools.service';
 import { AgentsCredentialProvider } from './adapters/agents-credential-provider';
 import { Agent } from './entities/agent.entity';
 import {
@@ -99,7 +97,7 @@ export class AgentsService {
 		private readonly n8nCheckpointStorage: N8NCheckpointStorage,
 		private readonly secureRuntime: AgentSecureRuntime,
 		private readonly ephemeralNodeExecutor: EphemeralNodeExecutor,
-		private readonly loadNodesAndCredentials: LoadNodesAndCredentials,
+		private readonly agentsToolsService: AgentsToolsService,
 		private readonly n8nMemory: N8nMemory,
 	) {}
 
@@ -304,20 +302,9 @@ export class AgentsService {
 		agentId: string,
 		projectId: string,
 	) {
-		// Node-discovery tools: let the agent discover and run n8n nodes on demand.
 		try {
-			const { createSearchNodesTool, createGetNodeSchemaTool, createRunNodeTool } = await import(
-				'./integrations/node-execution-tools'
-			);
-			const { nodes } = await this.loadNodesAndCredentials.collectTypes();
-			const nodeDefDirs = resolveBuiltinNodeDefinitionDirs();
-			if (nodeDefDirs.length > 0) setSchemaBaseDirs(nodeDefDirs);
-
-			agent.tool([
-				createSearchNodesTool(nodes, credentialProvider),
-				createGetNodeSchemaTool(nodes),
-				createRunNodeTool(this.ephemeralNodeExecutor, projectId),
-			]);
+			await this.agentsToolsService.initialize();
+			agent.tool(this.agentsToolsService.getTools(credentialProvider, projectId));
 		} catch (toolError) {
 			this.logger.warn('Failed to inject node-discovery tools', {
 				agentId,
