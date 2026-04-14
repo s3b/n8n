@@ -170,7 +170,6 @@ function selectSuggestion(suggestion: SuggestionTemplate) {
 	flex-direction: column;
 	height: 100%;
 	width: 100%;
-	background-color: var(--color--background);
 }
 
 .topBar {

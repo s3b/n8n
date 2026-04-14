@@ -9,7 +9,6 @@ import { useRootStore } from '@n8n/stores/useRootStore';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import { useTelemetry } from '@/app/composables/useTelemetry';
 import { useMessage } from '@/app/composables/useMessage';
-import { useToast } from '@/app/composables/useToast';
 import { MODAL_CONFIRM, MODAL_CANCEL, DEBOUNCE_TIME, getDebounceTime } from '@/app/constants';
 import { deepCopy } from 'n8n-workflow';
 import { getAgent, updateAgent, deleteAgent, publishAgent } from '../composables/useAgentApi';
@@ -28,7 +27,6 @@ const rootStore = useRootStore();
 const projectsStore = useProjectsStore();
 const telemetry = useTelemetry();
 const message = useMessage();
-const { showMessage } = useToast();
 
 const projectId = computed(
 	() => (route.params.projectId as string) ?? projectsStore.personalProject?.id ?? '',
@@ -44,6 +42,7 @@ const agentIcon = ref<IconOrEmoji>({ type: 'icon', value: 'robot' });
 const agent = ref<AgentResource | null>(null);
 const updatedAt = ref<string>('');
 const initialPrompt = ref<string | undefined>(undefined);
+const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle');
 
 // Config
 const { config, fetchConfig, updateConfig } = useAgentConfig();
@@ -106,12 +105,18 @@ async function saveConfig(): Promise<void> {
 }
 
 const debouncedSave = useDebounceFn(async () => {
-	await saveConfig();
-	showMessage({ title: locale.baseText('agents.builder.toast.saved'), type: 'success' });
-	telemetry.track('User saved agent settings', { agent_id: agentId.value });
+	saveStatus.value = 'saving';
+	try {
+		await saveConfig();
+		saveStatus.value = 'saved';
+		telemetry.track('User saved agent settings', { agent_id: agentId.value });
+	} catch {
+		saveStatus.value = 'idle';
+	}
 }, getDebounceTime(DEBOUNCE_TIME.API.AUTOSAVE));
 
 function onConfigFieldUpdate(updates: Partial<AgentJsonConfig>) {
+	console.log(localConfig.value);
 	if (!localConfig.value) return;
 	Object.assign(localConfig.value, updates);
 	void debouncedSave();
@@ -187,6 +192,7 @@ async function initialize() {
 	agentIcon.value = { type: 'icon', value: 'robot' };
 	initialPrompt.value = undefined;
 	localConfig.value = null;
+	saveStatus.value = 'idle';
 
 	await fetchAgent();
 	await fetchConfig(projectId.value, agentId.value);
@@ -269,6 +275,7 @@ watch(agentId, initialize, { immediate: true });
 			:agent="agent"
 			:project-id="projectId"
 			:agent-id="agentId"
+			:save-status="saveStatus"
 			@update:config="onConfigFieldUpdate"
 			@published="onPublished"
 			@unpublished="onUnpublished"
