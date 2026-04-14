@@ -96,13 +96,17 @@ function startChat(msg: string) {
 	telemetry.track('User started agent chat', { agent_id: agentId.value });
 }
 
-const debouncedSave = useDebounceFn(async () => {
+async function saveConfig(): Promise<void> {
 	if (!localConfig.value) return;
 	const result = await updateConfig(projectId.value, agentId.value, localConfig.value);
 	// Keep agent.versionId in sync so hasUnpublishedChanges stays accurate
 	if (agent.value && result.versionId !== undefined) {
 		agent.value = { ...agent.value, versionId: result.versionId };
 	}
+}
+
+const debouncedSave = useDebounceFn(async () => {
+	await saveConfig();
 	showMessage({ title: locale.baseText('agents.builder.toast.saved'), type: 'success' });
 	telemetry.track('User saved agent settings', { agent_id: agentId.value });
 }, getDebounceTime(DEBOUNCE_TIME.API.AUTOSAVE));
@@ -164,9 +168,11 @@ onBeforeRouteLeave(async (_to, _from, next) => {
 
 	if (response === MODAL_CONFIRM) {
 		try {
+			// Flush any pending debounced edits so the snapshot captures the latest config.
+			await saveConfig();
 			await publishAgent(rootStore.restApiContext, projectId.value, agentId.value);
 		} catch {
-			return; // publish failed — stay on page
+			return; // save or publish failed — stay on page
 		}
 		next();
 	} else if (response === MODAL_CANCEL) {
