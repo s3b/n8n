@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
 import { useRoute, useRouter } from 'vue-router';
 import { N8nActionDropdown, N8nIcon, N8nText } from '@n8n/design-system';
 import type { IconOrEmoji } from '@n8n/design-system';
@@ -8,7 +9,8 @@ import { useRootStore } from '@n8n/stores/useRootStore';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import { useTelemetry } from '@/app/composables/useTelemetry';
 import { useMessage } from '@/app/composables/useMessage';
-import { MODAL_CONFIRM } from '@/app/constants';
+import { useToast } from '@/app/composables/useToast';
+import { MODAL_CONFIRM, DEBOUNCE_TIME, getDebounceTime } from '@/app/constants';
 import { deepCopy } from 'n8n-workflow';
 import { getAgent, updateAgent, deleteAgent } from '../composables/useAgentApi';
 import type { AgentResource, AgentJsonConfig } from '../types';
@@ -17,7 +19,6 @@ import { useAgentConfig } from '../composables/useAgentConfig';
 import { agentsEventBus } from '../agents.eventBus';
 import AgentChatPanel from '../components/AgentChatPanel.vue';
 import AgentHomeContent from '../components/AgentHomeContent.vue';
-import AgentPublishButton from '../components/AgentPublishButton.vue';
 import AgentSettingsSidebar from '../components/AgentSettingsSidebar.vue';
 
 const route = useRoute();
@@ -27,6 +28,7 @@ const rootStore = useRootStore();
 const projectsStore = useProjectsStore();
 const telemetry = useTelemetry();
 const message = useMessage();
+const { showMessage } = useToast();
 
 const projectId = computed(
 	() => (route.params.projectId as string) ?? projectsStore.personalProject?.id ?? '',
@@ -46,16 +48,12 @@ const initialPrompt = ref<string | undefined>(undefined);
 // Config
 const { config, fetchConfig, updateConfig } = useAgentConfig();
 const localConfig = ref<AgentJsonConfig | null>(null);
-const originalConfigJson = ref('');
-const isDirty = ref(false);
 
 watch(
 	config,
 	(c) => {
 		if (c) {
 			localConfig.value = deepCopy(c);
-			originalConfigJson.value = JSON.stringify(c);
-			isDirty.value = false;
 		}
 	},
 	{ immediate: true },
@@ -98,31 +96,25 @@ function startChat(msg: string) {
 	telemetry.track('User started agent chat', { agent_id: agentId.value });
 }
 
+const debouncedSave = useDebounceFn(async () => {
+	if (!localConfig.value) return;
+	const result = await updateConfig(projectId.value, agentId.value, localConfig.value);
+	// Keep agent.versionId in sync so hasUnpublishedChanges stays accurate
+	if (agent.value && result.versionId !== undefined) {
+		agent.value = { ...agent.value, versionId: result.versionId };
+	}
+	showMessage({ title: 'Agent settings saved', type: 'success' });
+	telemetry.track('User saved agent settings', { agent_id: agentId.value });
+}, getDebounceTime(DEBOUNCE_TIME.API.AUTOSAVE));
+
 function onConfigFieldUpdate(updates: Partial<AgentJsonConfig>) {
 	if (!localConfig.value) return;
 	Object.assign(localConfig.value, updates);
-	isDirty.value = JSON.stringify(localConfig.value) !== originalConfigJson.value;
-}
-
-async function saveConfig() {
-	if (!localConfig.value) return;
-	await updateConfig(projectId.value, agentId.value, localConfig.value);
-	originalConfigJson.value = JSON.stringify(localConfig.value);
-	isDirty.value = false;
-	telemetry.track('User saved agent settings', { agent_id: agentId.value });
-}
-
-function cancelConfig() {
-	if (config.value) {
-		localConfig.value = deepCopy(config.value);
-		isDirty.value = false;
-		telemetry.track('User cancelled agent settings', { agent_id: agentId.value });
-	}
+	void debouncedSave();
 }
 
 async function onConfigUpdated() {
 	await Promise.all([fetchAgent(), fetchConfig(projectId.value, agentId.value)]);
-	isDirty.value = false;
 }
 
 const headerActions = [{ id: 'delete', label: 'Delete agent' }];
@@ -154,8 +146,6 @@ async function initialize() {
 	agentIcon.value = { type: 'icon', value: 'robot' };
 	initialPrompt.value = undefined;
 	localConfig.value = null;
-	originalConfigJson.value = '';
-	isDirty.value = false;
 
 	await fetchAgent();
 	await fetchConfig(projectId.value, agentId.value);
@@ -182,13 +172,6 @@ watch(agentId, initialize, { immediate: true });
 					}}</N8nText>
 				</div>
 				<div :class="$style.mainHeaderRight">
-					<AgentPublishButton
-						:agent="agent"
-						:project-id="projectId"
-						:agent-id="agentId"
-						@published="onPublished"
-						@unpublished="onUnpublished"
-					/>
 					<button
 						v-if="chatActive"
 						:class="$style.toggleBtn"
@@ -242,10 +225,12 @@ watch(agentId, initialize, { immediate: true });
 			:config="localConfig"
 			:agent-tools="agent?.tools ?? {}"
 			:updated-at="updatedAt"
-			:is-dirty="isDirty"
+			:agent="agent"
+			:project-id="projectId"
+			:agent-id="agentId"
 			@update:config="onConfigFieldUpdate"
-			@save="saveConfig"
-			@cancel="cancelConfig"
+			@published="onPublished"
+			@unpublished="onUnpublished"
 		/>
 	</div>
 </template>

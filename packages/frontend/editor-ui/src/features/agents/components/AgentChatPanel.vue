@@ -47,7 +47,6 @@ const isStreaming = ref(false);
 const abortController = ref<AbortController | null>(null);
 const builderHistoryLoaded = ref(false);
 const scrollRef = useTemplateRef<HTMLDivElement>('scrollRef');
-const inputRef = useTemplateRef<InstanceType<typeof N8nInput>>('inputRef');
 
 const currentMessages = computed(() =>
 	activeTab.value === 'builder' ? builderMessages.value : messages.value,

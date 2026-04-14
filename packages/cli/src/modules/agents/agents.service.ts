@@ -603,7 +603,7 @@ export class AgentsService {
 		agentId: string,
 		projectId: string,
 		config: unknown,
-	): Promise<{ config: AgentJsonConfig; updatedAt: string }> {
+	): Promise<{ config: AgentJsonConfig; updatedAt: string; versionId: string | null }> {
 		const entity = await this.agentRepository.findByIdAndProjectId(agentId, projectId);
 		if (!entity) throw new NotFoundError('Agent not found');
 
@@ -639,7 +639,11 @@ export class AgentsService {
 		const saved = await this.agentRepository.save(entity);
 		this.logger.debug('Updated agent JSON config', { agentId, projectId });
 
-		return { config: result.config, updatedAt: saved.updatedAt.toISOString() };
+		return {
+			config: result.config,
+			updatedAt: saved.updatedAt.toISOString(),
+			versionId: saved.versionId,
+		};
 	}
 
 	/**

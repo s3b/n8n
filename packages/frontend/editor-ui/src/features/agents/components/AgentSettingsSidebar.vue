@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { N8nButton, N8nCallout, N8nIcon, N8nInput, N8nText } from '@n8n/design-system';
+import { N8nIcon, N8nInput, N8nText } from '@n8n/design-system';
 import { useI18n } from '@n8n/i18n';
 import type { ChatHubConversationModel, ChatHubProvider, ChatModelDto } from '@n8n/api-types';
 import { useUsersStore } from '@/features/settings/users/users.store';
@@ -8,9 +8,10 @@ import { useChatStore } from '@/features/ai/chatHub/chat.store';
 import { useChatCredentials } from '@/features/ai/chatHub/composables/useChatCredentials';
 import { isLlmProviderModel } from '@/features/ai/chatHub/chat.utils';
 import ModelSelector from '@/features/ai/chatHub/components/ModelSelector.vue';
-import type { AgentJsonConfig } from '../types';
+import type { AgentResource, AgentJsonConfig } from '../types';
 import type { CustomToolEntry } from '../agent.types';
 import { CHATHUB_TO_CATALOG, CATALOG_TO_CHATHUB } from '../provider-mapping';
+import AgentPublishButton from './AgentPublishButton.vue';
 import AgentToolsPanel from './AgentToolsPanel.vue';
 import AgentMemoryPanel from './AgentMemoryPanel.vue';
 import AgentCodeEditor from './AgentCodeEditor.vue';
@@ -23,13 +24,15 @@ const props = defineProps<{
 	config: AgentJsonConfig | null;
 	agentTools: Record<string, CustomToolEntry>;
 	updatedAt: string;
-	isDirty: boolean;
+	agent: AgentResource | null;
+	projectId: string;
+	agentId: string;
 }>();
 
 const emit = defineEmits<{
 	'update:config': [changes: Partial<AgentJsonConfig>];
-	save: [];
-	cancel: [];
+	published: [agent: AgentResource];
+	unpublished: [agent: AgentResource];
 }>();
 
 // --- Model & credential state (reusing ChatHub infrastructure) ---
@@ -169,24 +172,14 @@ function onResizeStart(event: MouseEvent) {
 		<!-- Sidebar header -->
 		<div :class="$style.header">
 			<N8nText tag="span" bold>{{ locale.baseText('agents.settings.title') }}</N8nText>
-			<div :class="$style.headerActions">
-				<button :class="$style.cancelBtn" :disabled="!isDirty" @click="emit('cancel')">
-					{{ locale.baseText('agents.settings.cancel') }}
-				</button>
-				<N8nButton
-					type="primary"
-					size="small"
-					:label="locale.baseText('agents.settings.save')"
-					:disabled="!isDirty"
-					@click="emit('save')"
-				/>
-			</div>
+			<AgentPublishButton
+				:agent="agent"
+				:project-id="projectId"
+				:agent-id="agentId"
+				@published="(a) => emit('published', a)"
+				@unpublished="(a) => emit('unpublished', a)"
+			/>
 		</div>
-
-		<!-- Unsaved changes banner -->
-		<N8nCallout v-if="isDirty" theme="warning" :class="$style.unsavedBanner">
-			{{ locale.baseText('agents.settings.unsavedChanges') }}
-		</N8nCallout>
 
 		<div :class="$style.body">
 			<!-- Model section -->
@@ -348,43 +341,6 @@ function onResizeStart(event: MouseEvent) {
 	min-height: 56px;
 	padding: 0 var(--spacing--sm);
 	border-bottom: var(--border-width) var(--border-style) var(--color--foreground);
-}
-
-.headerActions {
-	display: flex;
-	align-items: center;
-	gap: var(--spacing--2xs);
-}
-
-.cancelBtn {
-	background: none;
-	border: none;
-	cursor: pointer;
-	font-size: var(--font-size--sm);
-	font-family: var(--font-family);
-	font-weight: var(--font-weight--bold);
-	color: var(--color--text);
-	padding: var(--spacing--4xs) var(--spacing--xs);
-	border-radius: var(--radius);
-}
-
-.cancelBtn:hover {
-	background-color: var(--color--foreground--tint-2);
-}
-
-.cancelBtn:disabled {
-	color: var(--color--text--tint-2);
-	cursor: default;
-}
-
-.cancelBtn:disabled:hover {
-	background: none;
-}
-
-.unsavedBanner {
-	flex-shrink: 0;
-	text-align: center;
-	border-radius: 0;
 }
 
 .body {
