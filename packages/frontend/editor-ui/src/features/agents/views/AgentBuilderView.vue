@@ -116,7 +116,6 @@ const debouncedSave = useDebounceFn(async () => {
 }, getDebounceTime(DEBOUNCE_TIME.API.AUTOSAVE));
 
 function onConfigFieldUpdate(updates: Partial<AgentJsonConfig>) {
-	console.log(localConfig.value);
 	if (!localConfig.value) return;
 	Object.assign(localConfig.value, updates);
 	void debouncedSave();
@@ -174,6 +173,7 @@ onBeforeRouteLeave(async (_to, _from, next) => {
 	if (response === MODAL_CONFIRM) {
 		try {
 			// Flush any pending debounced edits so the snapshot captures the latest config.
+			if (!localConfig.value) return;
 			await saveConfig();
 			await publishAgent(rootStore.restApiContext, projectId.value, agentId.value);
 		} catch {
