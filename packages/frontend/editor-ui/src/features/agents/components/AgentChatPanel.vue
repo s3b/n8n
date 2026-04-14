@@ -521,6 +521,7 @@ async function streamFromEndpoint(endpoint: 'build' | 'chat', message: string) {
 
 .inlinePanel {
 	flex: 1;
+	min-height: 0;
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
@@ -590,6 +591,7 @@ async function streamFromEndpoint(endpoint: 'build' | 'chat', message: string) {
 /* Messages area — matches ChatHub layout */
 .messages {
 	flex: 1;
+	min-height: 0;
 	overflow-y: auto;
 	padding: var(--spacing--lg) var(--spacing--xl);
 	display: flex;
