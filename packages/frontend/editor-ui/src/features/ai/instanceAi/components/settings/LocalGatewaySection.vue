@@ -107,9 +107,17 @@ onMounted(() => {
 		</N8nHeading>
 
 		<div v-if="isAdmin" :class="$style.switchRow">
-			<span :class="$style.switchLabel">{{
-				i18n.baseText('instanceAi.filesystem.adminToggle')
-			}}</span>
+			<span :class="$style.switchLabelWithInfo">
+				<span :class="$style.switchLabel">{{
+					i18n.baseText('instanceAi.filesystem.adminToggle')
+				}}</span>
+				<N8nTooltip placement="top" :show-after="300">
+					<N8nIcon icon="circle-help" size="small" :class="$style.infoIcon" />
+					<template #content>
+						{{ i18n.baseText('instanceAi.filesystem.adminToggle.tooltip') }}
+					</template>
+				</N8nTooltip>
+			</span>
 			<ElSwitch
 				:model-value="isGatewayEnabled"
 				:disabled="isSaving"
@@ -214,6 +222,20 @@ onMounted(() => {
 	align-items: center;
 	justify-content: space-between;
 	padding: var(--spacing--4xs) 0;
+}
+
+.switchLabelWithInfo {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--spacing--4xs);
+}
+
+.infoIcon {
+	color: var(--color--text--tint-1);
+
+	&:hover {
+		color: var(--color--text);
+	}
 }
 
 .switchLabel {
