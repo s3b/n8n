@@ -47,6 +47,7 @@ const permissionKeys: Array<{ key: keyof InstanceAiPermissions; labelKey: BaseTe
 ];
 
 const isEnabled = computed(() => store.settings?.enabled ?? false);
+const isGatewayEnabled = computed(() => !(store.settings?.localGatewayDisabled ?? false));
 
 onMounted(() => {
 	documentTitle.set(i18n.baseText('settings.n8nAgent'));
@@ -55,6 +56,11 @@ onMounted(() => {
 
 function handleEnabledToggle(value: string | number | boolean) {
 	store.setField('enabled', Boolean(value));
+	void store.save();
+}
+
+function handleGatewayToggle(value: string | number | boolean) {
+	store.setField('localGatewayDisabled', !value);
 	void store.save();
 }
 
@@ -92,7 +98,6 @@ function handlePermissionChange(key: keyof InstanceAiPermissions, value: Instanc
 							</span>
 						</div>
 						<ElSwitch
-							:class="$style.toggle"
 							:model-value="isEnabled"
 							:disabled="store.isSaving"
 							data-test-id="n8n-agent-enable-toggle"
@@ -111,12 +116,17 @@ function handlePermissionChange(key: keyof InstanceAiPermissions, value: Instanc
 
 				<div :class="$style.card">
 					<div :class="$style.sectionBlock">
-						<LocalGatewaySection />
+						<LocalGatewaySection
+							:is-admin="isAdmin"
+							:is-gateway-enabled="isGatewayEnabled"
+							:is-saving="store.isSaving"
+							@toggle-gateway="handleGatewayToggle"
+						/>
 					</div>
 				</div>
 
 				<template v-if="isAdmin">
-					<div v-if="!store.isCloudManaged" :class="$style.card">
+					<div v-if="!store.isCloudManaged && !store.isProxyEnabled" :class="$style.card">
 						<div :class="$style.sectionBlock">
 							<SandboxSection />
 						</div>
@@ -128,7 +138,7 @@ function handlePermissionChange(key: keyof InstanceAiPermissions, value: Instanc
 						</div>
 					</div>
 
-					<div v-if="!store.isCloudManaged" :class="$style.card">
+					<div v-if="!store.isCloudManaged && !store.isProxyEnabled" :class="$style.card">
 						<div :class="$style.sectionBlock">
 							<SearchSection />
 						</div>
@@ -246,10 +256,6 @@ function handlePermissionChange(key: keyof InstanceAiPermissions, value: Instanc
 .sectionBlock {
 	padding: var(--spacing--sm);
 	background: var(--color--background--light-3);
-}
-
-.toggle {
-	--switch--color--background--active: var(--color--primary);
 }
 
 .settingsRow {

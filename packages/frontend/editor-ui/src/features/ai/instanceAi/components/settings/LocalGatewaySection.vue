@@ -7,6 +7,16 @@ import { useI18n } from '@n8n/i18n';
 import type { BaseTextKey } from '@n8n/i18n';
 import { useSettingsField } from './useSettingsField';
 
+defineProps<{
+	isAdmin: boolean;
+	isGatewayEnabled: boolean;
+	isSaving: boolean;
+}>();
+
+const emit = defineEmits<{
+	toggleGateway: [value: string | number | boolean];
+}>();
+
 const i18n = useI18n();
 const { store } = useSettingsField();
 
@@ -96,80 +106,97 @@ onMounted(() => {
 			{{ i18n.baseText('instanceAi.filesystem.label') }}
 		</N8nHeading>
 
-		<div :class="$style.switchRow">
+		<div v-if="isAdmin" :class="$style.switchRow">
 			<span :class="$style.switchLabel">{{
-				i18n.baseText('instanceAi.filesystem.description')
+				i18n.baseText('instanceAi.filesystem.adminToggle')
 			}}</span>
 			<ElSwitch
-				:model-value="!isLocalGatewayDisabled"
-				:disabled="store.isLocalGatewayDisabled"
-				@update:model-value="store.setPreferenceField('localGatewayDisabled', !$event)"
+				:model-value="isGatewayEnabled"
+				:disabled="isSaving"
+				data-test-id="n8n-agent-gateway-toggle"
+				@update:model-value="emit('toggleGateway', $event)"
 			/>
 		</div>
 
-		<template v-if="!isLocalGatewayDisabled">
-			<!-- Gateway connected -->
-			<div v-if="store.isGatewayConnected" :class="$style.connectedBlock">
-				<div :class="$style.statusRow">
-					<span :class="[$style.dot, $style.dotConnected]" />
-					<N8nText size="small" :bold="true">
-						{{ store.gatewayHostIdentifier ?? store.gatewayDirectory }}
-					</N8nText>
-				</div>
-				<div
-					v-if="store.gatewayHostIdentifier && store.gatewayDirectory"
-					:class="$style.directoryRow"
-				>
-					<N8nText size="small" color="text-light">
-						{{ store.gatewayDirectory }}
-					</N8nText>
-				</div>
-				<div v-if="displayCategories.length" :class="$style.toolCategories">
-					<span
-						v-for="cat in displayCategories"
-						:key="cat.key"
-						:class="[$style.categoryPill, !cat.enabled && $style.categoryPillDisabled]"
-					>
-						<N8nIcon :icon="cat.icon" size="xsmall" />
-						{{ cat.label }}
-						<span v-if="cat.sublabel" :class="$style.categorySublabel"> ({{ cat.sublabel }}) </span>
-					</span>
-				</div>
+		<template v-if="isGatewayEnabled">
+			<div :class="$style.switchRow">
+				<span :class="$style.switchLabel">{{
+					i18n.baseText('instanceAi.filesystem.userToggle')
+				}}</span>
+				<ElSwitch
+					:model-value="!isLocalGatewayDisabled"
+					@update:model-value="store.setPreferenceField('localGatewayDisabled', !$event)"
+				/>
 			</div>
 
-			<!-- No gateway connected — show setup instructions -->
-			<template v-else>
-				<!-- Daemon connecting -->
-				<div v-if="store.isDaemonConnecting" :class="$style.connectingRow">
-					<span :class="$style.spinner" />
-					<N8nText size="small" color="text-light">
-						{{ i18n.baseText('instanceAi.filesystem.connectWaiting') }}
-					</N8nText>
+			<template v-if="!isLocalGatewayDisabled">
+				<!-- Gateway connected -->
+				<div v-if="store.isGatewayConnected" :class="$style.connectedBlock">
+					<div :class="$style.statusRow">
+						<span :class="[$style.dot, $style.dotConnected]" />
+						<N8nText size="small" :bold="true">
+							{{ store.gatewayHostIdentifier ?? store.gatewayDirectory }}
+						</N8nText>
+					</div>
+					<div
+						v-if="store.gatewayHostIdentifier && store.gatewayDirectory"
+						:class="$style.directoryRow"
+					>
+						<N8nText size="small" color="text-light">
+							{{ store.gatewayDirectory }}
+						</N8nText>
+					</div>
+					<div v-if="displayCategories.length" :class="$style.toolCategories">
+						<span
+							v-for="cat in displayCategories"
+							:key="cat.key"
+							:class="[$style.categoryPill, !cat.enabled && $style.categoryPillDisabled]"
+						>
+							<N8nIcon :icon="cat.icon" size="xsmall" />
+							{{ cat.label }}
+							<span v-if="cat.sublabel" :class="$style.categorySublabel">
+								({{ cat.sublabel }})
+							</span>
+						</span>
+					</div>
 				</div>
 
-				<!-- Setup command -->
-				<div v-else :class="$style.setupBlock">
-					<N8nText size="small" color="text-light">
-						{{ i18n.baseText('instanceAi.filesystem.setupCommand') }}
-					</N8nText>
-					<div :class="$style.commandBlock">
-						<code :class="$style.commandText">{{ displayCommand }}</code>
-						<N8nTooltip :content="copied ? i18n.baseText('instanceAi.filesystem.copied') : 'Copy'">
-							<N8nIconButton
-								:icon="copied ? 'check' : 'copy'"
-								variant="ghost"
-								size="mini"
-								@click="copyCommand"
-							/>
-						</N8nTooltip>
-					</div>
-					<div :class="$style.connectingRow">
+				<!-- No gateway connected — show setup instructions -->
+				<template v-else>
+					<!-- Daemon connecting -->
+					<div v-if="store.isDaemonConnecting" :class="$style.connectingRow">
 						<span :class="$style.spinner" />
 						<N8nText size="small" color="text-light">
 							{{ i18n.baseText('instanceAi.filesystem.connectWaiting') }}
 						</N8nText>
 					</div>
-				</div>
+
+					<!-- Setup command -->
+					<div v-else :class="$style.setupBlock">
+						<N8nText size="small" color="text-light">
+							{{ i18n.baseText('instanceAi.filesystem.setupCommand') }}
+						</N8nText>
+						<div :class="$style.commandBlock">
+							<code :class="$style.commandText">{{ displayCommand }}</code>
+							<N8nTooltip
+								:content="copied ? i18n.baseText('instanceAi.filesystem.copied') : 'Copy'"
+							>
+								<N8nIconButton
+									:icon="copied ? 'check' : 'copy'"
+									variant="ghost"
+									size="mini"
+									@click="copyCommand"
+								/>
+							</N8nTooltip>
+						</div>
+						<div :class="$style.connectingRow">
+							<span :class="$style.spinner" />
+							<N8nText size="small" color="text-light">
+								{{ i18n.baseText('instanceAi.filesystem.connectWaiting') }}
+							</N8nText>
+						</div>
+					</div>
+				</template>
 			</template>
 		</template>
 	</div>
