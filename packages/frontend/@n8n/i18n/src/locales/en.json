@@ -5418,6 +5418,7 @@
 	"instanceAi.activitySummary.questions": "{count} answered questions",
 	"instanceAi.activitySummary.subagents": "{count} subagents",
 	"instanceAi.filesystem.label": "Local gateway",
+	"instanceAi.filesystem.description": "Allow the AI Assistant to access your local machine",
 	"instanceAi.filesystem.connected": "Files connected",
 	"instanceAi.filesystem.connectWaiting": "Connecting...",
 	"instanceAi.filesystem.copied": "Copied!",

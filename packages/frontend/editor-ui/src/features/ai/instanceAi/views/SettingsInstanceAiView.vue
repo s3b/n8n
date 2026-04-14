@@ -102,7 +102,7 @@ function handlePermissionChange(key: keyof InstanceAiPermissions, value: Instanc
 				</div>
 			</template>
 
-			<div :class="$style.card">
+			<div v-if="!store.isCloudManaged" :class="$style.card">
 				<div :class="$style.sectionBlock">
 					<ModelSection />
 				</div>
@@ -115,25 +115,25 @@ function handlePermissionChange(key: keyof InstanceAiPermissions, value: Instanc
 			</div>
 
 			<template v-if="isAdmin">
-				<div :class="$style.card">
+				<div v-if="!store.isCloudManaged" :class="$style.card">
 					<div :class="$style.sectionBlock">
 						<SandboxSection />
 					</div>
 				</div>
 
-				<div :class="$style.card">
+				<div v-if="!store.isCloudManaged" :class="$style.card">
 					<div :class="$style.sectionBlock">
 						<MemorySection />
 					</div>
 				</div>
 
-				<div :class="$style.card">
+				<div v-if="!store.isCloudManaged" :class="$style.card">
 					<div :class="$style.sectionBlock">
 						<SearchSection />
 					</div>
 				</div>
 
-				<div :class="$style.card">
+				<div v-if="!store.isCloudManaged" :class="$style.card">
 					<div :class="$style.sectionBlock">
 						<AdvancedSection />
 					</div>

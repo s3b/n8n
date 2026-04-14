@@ -97,7 +97,9 @@ onMounted(() => {
 		</N8nHeading>
 
 		<div :class="$style.switchRow">
-			<span :class="$style.switchLabel">{{ i18n.baseText('instanceAi.filesystem.label') }}</span>
+			<span :class="$style.switchLabel">{{
+				i18n.baseText('instanceAi.filesystem.description')
+			}}</span>
 			<ElSwitch
 				:model-value="!isLocalGatewayDisabled"
 				:disabled="store.isLocalGatewayDisabled"
