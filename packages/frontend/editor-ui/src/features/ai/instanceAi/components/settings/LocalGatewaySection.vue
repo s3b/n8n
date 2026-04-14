@@ -26,6 +26,11 @@ const isLocalGatewayDisabled = computed(() => {
 	return store.preferences?.localGatewayDisabled ?? false;
 });
 
+function handleUserToggle(value: string | number | boolean) {
+	store.setPreferenceField('localGatewayDisabled', !value);
+	void store.save();
+}
+
 const copied = ref(false);
 const displayCommand = computed(() => store.setupCommand ?? 'npx @n8n/computer-use');
 
@@ -131,10 +136,7 @@ onMounted(() => {
 				<span :class="$style.switchLabel">{{
 					i18n.baseText('instanceAi.filesystem.userToggle')
 				}}</span>
-				<ElSwitch
-					:model-value="!isLocalGatewayDisabled"
-					@update:model-value="store.setPreferenceField('localGatewayDisabled', !$event)"
-				/>
+				<ElSwitch :model-value="!isLocalGatewayDisabled" @update:model-value="handleUserToggle" />
 			</div>
 
 			<template v-if="!isLocalGatewayDisabled">
