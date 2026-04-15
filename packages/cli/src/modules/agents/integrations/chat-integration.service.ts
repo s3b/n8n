@@ -10,7 +10,7 @@ import { UrlService } from '@/services/url.service';
 import { AgentChatBridge } from './agent-chat-bridge';
 import { ComponentMapper } from './component-mapper';
 import { loadChatSdk, loadMemoryState, loadSlackAdapter, loadTelegramAdapter } from './esm-loader';
-import { AgentsCredentialProvider } from '../agents-credential-provider';
+import { AgentsCredentialProvider } from '../adapters/agents-credential-provider';
 import { AgentRepository } from '../repositories/agent.repository';
 
 // ---------------------------------------------------------------------------
