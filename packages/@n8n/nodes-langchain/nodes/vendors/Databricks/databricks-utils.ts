@@ -3,7 +3,7 @@
  */
 
 import ipaddr from 'ipaddr.js';
-import { UserError } from 'n8n-workflow';
+import { UserError, type ILoadOptionsFunctions, type INodePropertyOptions } from 'n8n-workflow';
 import { lookup } from 'node:dns/promises';
 
 /**
@@ -110,4 +110,26 @@ export function validateResourceName(name: string, resourceType: string): string
 	}
 
 	return name;
+}
+
+/**
+ * Loads the Databricks Model Serving endpoints for a `loadOptions` model dropdown.
+ * Shared by the Databricks chat-model and embeddings nodes so the host is validated
+ * and the endpoint list is built the same way for both.
+ */
+export async function loadDatabricksServingEndpoints(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	const credentials = await this.getCredentials<{ host: string }>('databricksApi');
+	const host = await validateDatabricksHost(credentials.host);
+
+	const response = (await this.helpers.httpRequestWithAuthentication.call(this, 'databricksApi', {
+		method: 'GET',
+		baseURL: host,
+		url: '/api/2.0/serving-endpoints',
+	})) as { endpoints?: Array<{ name: string }> };
+
+	return (response.endpoints ?? [])
+		.map((endpoint) => ({ name: endpoint.name, value: endpoint.name }))
+		.sort((a, b) => a.name.localeCompare(b.name));
 }

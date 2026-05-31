@@ -7,8 +7,6 @@ import {
 } from '@n8n/ai-utilities';
 import {
 	NodeConnectionTypes,
-	type ILoadOptionsFunctions,
-	type INodePropertyOptions,
 	type INodeType,
 	type INodeTypeDescription,
 	type ISupplyDataFunctions,
@@ -16,6 +14,7 @@ import {
 } from 'n8n-workflow';
 
 import {
+	loadDatabricksServingEndpoints,
 	validateDatabricksHost,
 	validateResourceName,
 } from '../../vendors/Databricks/databricks-utils';
@@ -165,24 +164,7 @@ export class LmChatDatabricks implements INodeType {
 
 	methods = {
 		loadOptions: {
-			async getModels(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-				const credentials = await this.getCredentials<DatabricksCredential>('databricksApi');
-				const host = await validateDatabricksHost(credentials.host);
-
-				const response = (await this.helpers.httpRequestWithAuthentication.call(
-					this,
-					'databricksApi',
-					{
-						method: 'GET',
-						baseURL: host,
-						url: '/api/2.0/serving-endpoints',
-					},
-				)) as { endpoints?: Array<{ name: string }> };
-
-				return (response.endpoints ?? [])
-					.map((endpoint) => ({ name: endpoint.name, value: endpoint.name }))
-					.sort((a, b) => a.name.localeCompare(b.name));
-			},
+			getModels: loadDatabricksServingEndpoints,
 		},
 	};
 
