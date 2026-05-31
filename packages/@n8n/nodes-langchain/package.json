@@ -287,6 +287,7 @@
     "generate-schema": "2.6.0",
     "html-to-text": "9.0.5",
     "ignore": "^5.2.0",
+    "ipaddr.js": "1.9.1",
     "js-tiktoken": "catalog:",
     "jsdom": "23.0.1",
     "langchain": "catalog:",

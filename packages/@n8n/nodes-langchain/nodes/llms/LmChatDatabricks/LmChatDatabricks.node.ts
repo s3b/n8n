@@ -7,17 +7,19 @@ import {
 } from '@n8n/ai-utilities';
 import {
 	NodeConnectionTypes,
+	type ILoadOptionsFunctions,
+	type INodePropertyOptions,
 	type INodeType,
 	type INodeTypeDescription,
 	type ISupplyDataFunctions,
 	type SupplyData,
 } from 'n8n-workflow';
 
-import { openAiFailedAttemptHandler } from '../../vendors/OpenAi/helpers/error-handling';
 import {
 	validateDatabricksHost,
 	validateResourceName,
 } from '../../vendors/Databricks/databricks-utils';
+import { openAiFailedAttemptHandler } from '../../vendors/OpenAi/helpers/error-handling';
 
 interface DatabricksCredential {
 	host: string;
@@ -79,48 +81,13 @@ export class LmChatDatabricks implements INodeType {
 				},
 			},
 			{
-				displayName: 'Model',
+				displayName: 'Model Name or ID',
 				name: 'model',
 				type: 'options',
-				description: 'The Databricks serving endpoint to use for chat completions',
+				description:
+					'The Databricks serving endpoint to use for chat completions. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 				typeOptions: {
-					loadOptions: {
-						routing: {
-							request: {
-								method: 'GET',
-								url: '/api/2.0/serving-endpoints',
-							},
-							output: {
-								postReceive: [
-									{
-										type: 'rootProperty',
-										properties: {
-											property: 'endpoints',
-										},
-									},
-									{
-										type: 'setKeyValue',
-										properties: {
-											name: '={{$responseItem.name}}',
-											value: '={{$responseItem.name}}',
-										},
-									},
-									{
-										type: 'sort',
-										properties: {
-											key: 'name',
-										},
-									},
-								],
-							},
-						},
-					},
-				},
-				routing: {
-					send: {
-						type: 'body',
-						property: 'model',
-					},
+					loadOptionsMethod: 'getModels',
 				},
 				default: '',
 			},
@@ -136,7 +103,7 @@ export class LmChatDatabricks implements INodeType {
 						displayName: 'Maximum Number of Tokens',
 						name: 'maxTokens',
 						default: -1,
-						description: 'The maximum number of tokens to generate in the completion.',
+						description: 'The maximum number of tokens to generate in the completion',
 						type: 'number',
 						typeOptions: {
 							maxValue: 32768,
@@ -165,7 +132,7 @@ export class LmChatDatabricks implements INodeType {
 						name: 'temperature',
 						default: 0.7,
 						typeOptions: { maxValue: 2, minValue: 0, numberPrecision: 1 },
-						description: 'Controls randomness: lower values produce less random completions.',
+						description: 'Controls randomness: lower values produce less random completions',
 						type: 'number',
 					},
 					{
@@ -188,12 +155,35 @@ export class LmChatDatabricks implements INodeType {
 						default: 1,
 						typeOptions: { maxValue: 1, minValue: 0, numberPrecision: 1 },
 						description:
-							'Controls diversity via nucleus sampling: 0.5 means half of all likelihood-weighted options are considered.',
+							'Controls diversity via nucleus sampling: 0.5 means half of all likelihood-weighted options are considered',
 						type: 'number',
 					},
 				],
 			},
 		],
+	};
+
+	methods = {
+		loadOptions: {
+			async getModels(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const credentials = await this.getCredentials<DatabricksCredential>('databricksApi');
+				const host = await validateDatabricksHost(credentials.host);
+
+				const response = (await this.helpers.httpRequestWithAuthentication.call(
+					this,
+					'databricksApi',
+					{
+						method: 'GET',
+						baseURL: host,
+						url: '/api/2.0/serving-endpoints',
+					},
+				)) as { endpoints?: Array<{ name: string }> };
+
+				return (response.endpoints ?? [])
+					.map((endpoint) => ({ name: endpoint.name, value: endpoint.name }))
+					.sort((a, b) => a.name.localeCompare(b.name));
+			},
+		},
 	};
 
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
@@ -211,7 +201,7 @@ export class LmChatDatabricks implements INodeType {
 		};
 
 		const timeout = options.timeout ?? 60000;
-		const host = validateDatabricksHost(credentials.host);
+		const host = await validateDatabricksHost(credentials.host);
 		validateResourceName(modelName, 'Model endpoint');
 		const baseURL = `${host}/serving-endpoints`;
 

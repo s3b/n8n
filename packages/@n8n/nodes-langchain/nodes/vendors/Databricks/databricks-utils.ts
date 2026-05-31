@@ -2,58 +2,97 @@
  * Shared Databricks validation utilities for all Databricks LangChain nodes.
  */
 
+import ipaddr from 'ipaddr.js';
+import { UserError } from 'n8n-workflow';
+import { lookup } from 'node:dns/promises';
+
+/**
+ * Address ranges that must never be the target of an outbound request.
+ * `ipaddr.js` classifies any normal, publicly-routable address as `unicast`;
+ * everything else (loopback, private, link-local, carrier-grade NAT,
+ * IPv4-mapped, reserved, multicast, …) is rejected.
+ */
+function assertPublicAddress(address: string): void {
+	let parsed: ipaddr.IPv4 | ipaddr.IPv6;
+	try {
+		parsed = ipaddr.parse(address);
+	} catch {
+		// If we cannot parse what the resolver returned, fail closed.
+		throw new UserError(
+			'Databricks host must be a public Databricks workspace URL, not a local or private address.',
+		);
+	}
+
+	// Resolve IPv4-mapped IPv6 addresses (e.g. ::ffff:169.254.169.254) to their
+	// underlying IPv4 address so the classification reflects the real target.
+	if (parsed.kind() === 'ipv6' && (parsed as ipaddr.IPv6).isIPv4MappedAddress()) {
+		parsed = (parsed as ipaddr.IPv6).toIPv4Address();
+	}
+
+	if (parsed.range() !== 'unicast') {
+		throw new UserError(
+			'Databricks host must be a public Databricks workspace URL, not a local or private address.',
+		);
+	}
+}
+
 /**
  * Validates and sanitizes a Databricks host URL.
- * Ensures HTTPS protocol and strips trailing slashes.
- * @throws Error if the host is not a valid HTTPS URL
+ * Ensures HTTPS protocol, strips trailing slashes, and resolves the hostname to
+ * verify it does not point at a private, loopback, or metadata address. Resolving
+ * the hostname (rather than string-matching it) also covers alternate IP
+ * encodings and hostnames that resolve to internal addresses.
+ * @throws UserError if the host is not a valid, public HTTPS URL
  */
-export function validateDatabricksHost(host: string): string {
+export async function validateDatabricksHost(host: string): Promise<string> {
 	const sanitized = host.replace(/\/+$/, '');
 
-	if (!sanitized.startsWith('https://')) {
-		throw new Error(
+	let url: URL;
+	try {
+		url = new URL(sanitized);
+	} catch {
+		throw new UserError(
+			'Databricks host must be a valid URL, e.g. https://your-workspace.cloud.databricks.com.',
+		);
+	}
+
+	if (url.protocol !== 'https:') {
+		throw new UserError(
 			'Databricks host must use HTTPS. Please update your credentials to use https://.',
 		);
 	}
 
-	// Block requests to localhost, loopback, and metadata endpoints
-	const url = new URL(sanitized);
-	const hostname = url.hostname.toLowerCase();
+	// `URL.hostname` wraps IPv6 literals in brackets, which the resolver rejects.
+	const hostname = url.hostname.replace(/^\[|\]$/g, '');
 
-	const isPrivate172 =
-		hostname.startsWith('172.') &&
-		(() => {
-			const secondOctet = parseInt(hostname.split('.')[1], 10);
-			return secondOctet >= 16 && secondOctet <= 31;
-		})();
+	let addresses: Array<{ address: string }>;
+	try {
+		addresses = await lookup(hostname, { all: true, verbatim: true });
+	} catch {
+		throw new UserError(`Could not resolve Databricks host "${hostname}".`);
+	}
 
-	if (
-		hostname === 'localhost' ||
-		hostname === '127.0.0.1' ||
-		hostname === '0.0.0.0' ||
-		hostname === '169.254.169.254' ||
-		hostname.startsWith('10.') ||
-		hostname.startsWith('192.168.') ||
-		isPrivate172 ||
-		hostname === '[::1]'
-	) {
-		throw new Error(
-			'Databricks host must be a public Databricks workspace URL, not a local or private address.',
-		);
+	if (addresses.length === 0) {
+		throw new UserError(`Could not resolve Databricks host "${hostname}".`);
+	}
+
+	for (const { address } of addresses) {
+		assertPublicAddress(address);
 	}
 
 	return sanitized;
 }
 
 /**
- * Validates that a Databricks resource name (endpoint name, index name segment)
- * is safe for use in URL path construction.
+ * Validates that a Databricks resource name (such as a serving endpoint name) is
+ * non-empty and made up of safe characters. Acts as an early input guard before
+ * the value is sent to Databricks.
  * Allowed characters: alphanumeric, hyphens, underscores, dots.
- * @throws Error if the name contains path traversal or injection characters
+ * @throws UserError if the name is empty or contains unexpected characters
  */
 export function validateResourceName(name: string, resourceType: string): string {
 	if (!name || name.trim().length === 0) {
-		throw new Error(`${resourceType} name cannot be empty.`);
+		throw new UserError(`${resourceType} name cannot be empty.`);
 	}
 
 	// Allow three-level namespace format for index names: catalog.schema.index_name
@@ -61,23 +100,14 @@ export function validateResourceName(name: string, resourceType: string): string
 	const safePattern = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
 	if (!safePattern.test(name)) {
-		throw new Error(
+		throw new UserError(
 			`${resourceType} name "${name}" contains invalid characters. Only alphanumeric, hyphens, underscores, and dots are allowed.`,
 		);
 	}
 
-	// Block path traversal attempts
 	if (name.includes('..') || name.includes('//')) {
-		throw new Error(`${resourceType} name "${name}" contains path traversal characters.`);
+		throw new UserError(`${resourceType} name "${name}" contains invalid characters.`);
 	}
 
 	return name;
-}
-
-/**
- * Truncates an error response body to prevent leaking verbose server internals.
- */
-export function sanitizeErrorMessage(rawError: string, maxLength: number = 500): string {
-	if (rawError.length <= maxLength) return rawError;
-	return rawError.substring(0, maxLength) + '... (truncated)';
 }
