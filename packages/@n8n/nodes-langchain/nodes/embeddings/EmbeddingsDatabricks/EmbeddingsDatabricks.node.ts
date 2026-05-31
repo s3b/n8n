@@ -145,6 +145,10 @@ export class EmbeddingsDatabricks implements INodeType {
 			stripNewLines: options.stripNewLines,
 			timeout,
 			configuration,
+			// Databricks returns embeddings as a plain float array. The OpenAI SDK
+			// otherwise defaults to requesting base64 and mis-decodes that array into
+			// a garbled, wrong-length vector, so request the float format explicitly.
+			encodingFormat: 'float',
 		});
 
 		return {
